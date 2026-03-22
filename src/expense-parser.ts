@@ -2,6 +2,26 @@ import type { ParseExpenseResult } from './parse-expense-result';
 
 const AMOUNT_PATTERN: RegExp = /(-?\d[\d\s]*(?:[.,]\d+)?)/u;
 
+/**
+ * Parses separate amount and description fields (form UI).
+ */
+export function parseExpenseFields(amountRaw: string, descriptionRaw: string): ParseExpenseResult {
+  const trimmedAmount: string = amountRaw.trim();
+  const trimmedDescription: string = descriptionRaw.trim();
+  if (trimmedAmount.length === 0) {
+    return { ok: false, errorMessage: 'Введите сумму.' };
+  }
+  const normalizedNumber: string = trimmedAmount.replace(/\s/g, '').replace(',', '.');
+  const amount: number = Number.parseFloat(normalizedNumber);
+  if (Number.isNaN(amount) || amount <= 0) {
+    return { ok: false, errorMessage: 'Сумма должна быть положительным числом.' };
+  }
+  if (trimmedDescription.length === 0) {
+    return { ok: false, errorMessage: 'Введите название траты.' };
+  }
+  return { ok: true, amount, description: trimmedDescription };
+}
+
 export function parseExpenseString(rawInput: string): ParseExpenseResult {
   const trimmed: string = rawInput.trim();
   if (trimmed.length === 0) {

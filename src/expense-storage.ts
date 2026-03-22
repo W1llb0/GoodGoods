@@ -1,3 +1,5 @@
+import { isExpenseCategory } from './expense-category';
+import { legacyKindToCategory } from './expense-legacy-kind-migration';
 import type { ExpenseRecord } from './expense-record';
 
 const STORAGE_KEY: string = 'good-goods-expenses-v1';
@@ -10,28 +12,38 @@ function readRaw(): string | null {
   }
 }
 
-function isExpenseRecord(value: unknown): value is ExpenseRecord {
+function normalizeExpenseRecord(value: unknown): ExpenseRecord | null {
   if (typeof value !== 'object' || value === null) {
-    return false;
+    return null;
   }
   const record = value as Record<string, unknown>;
-  const category = record.category;
   const id = record.id;
   const amount = record.amount;
   const description = record.description;
   const createdAt = record.createdAt;
-  const validCategory =
-    category === 'necessary' ||
-    category === 'useful' ||
-    category === 'investments' ||
-    category === 'harmful';
-  return (
-    typeof id === 'string' &&
-    typeof amount === 'number' &&
-    typeof description === 'string' &&
-    validCategory &&
-    typeof createdAt === 'string'
-  );
+  if (
+    typeof id !== 'string' ||
+    typeof amount !== 'number' ||
+    typeof description !== 'string' ||
+    typeof createdAt !== 'string'
+  ) {
+    return null;
+  }
+  const categoryRaw = record.category;
+  if (typeof categoryRaw === 'string' && isExpenseCategory(categoryRaw)) {
+    return { id, amount, description, category: categoryRaw, createdAt };
+  }
+  const kindRaw = record.kind;
+  if (typeof kindRaw === 'string') {
+    return {
+      id,
+      amount,
+      description,
+      category: legacyKindToCategory(kindRaw),
+      createdAt,
+    };
+  }
+  return null;
 }
 
 function parseRecords(raw: string): readonly ExpenseRecord[] {
@@ -42,8 +54,9 @@ function parseRecords(raw: string): readonly ExpenseRecord[] {
     }
     const result: ExpenseRecord[] = [];
     for (const item of parsed) {
-      if (isExpenseRecord(item)) {
-        result.push(item);
+      const normalized = normalizeExpenseRecord(item);
+      if (normalized !== null) {
+        result.push(normalized);
       }
     }
     return result;
@@ -80,8 +93,9 @@ export const expenseStorage = {
       }
       const next: ExpenseRecord[] = [];
       for (const item of parsed) {
-        if (isExpenseRecord(item)) {
-          next.push(item);
+        const normalized = normalizeExpenseRecord(item);
+        if (normalized !== null) {
+          next.push(normalized);
         }
       }
       writeRaw(next);
